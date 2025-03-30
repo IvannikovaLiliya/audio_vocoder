@@ -4,3 +4,4 @@ __pycache__/
 .DS
 data/wavs
 data/LJSpeech-1.1.tar.bz2
+.DS_Store
