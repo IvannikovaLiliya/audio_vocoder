@@ -3,8 +3,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
 from torch.nn.utils import weight_norm, spectral_norm
-from utils import init_weights, get_padding
-from dataset import inverse_mel
+from src.utils.utils import init_weights, get_padding
+from src.datasets.dataset import inverse_mel
 import numpy as np
 
 LRELU_SLOPE = 0.1

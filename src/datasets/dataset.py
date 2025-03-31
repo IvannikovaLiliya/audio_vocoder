@@ -142,18 +142,18 @@ def amp_pha_specturm(y, n_fft, hop_size, win_size):
     return log_amplitude, phase, stft_spec.real, stft_spec.imag
 
 
-def get_dataset_filelist(input_training_wav_list, input_validation_wav_list):
+def get_dataset_filelist(input_training_wav_list, input_validation_wav_list, raw_wavfile_path):
     training_files = []
-    filelist = os.listdir(input_training_wav_list)
-    for files in filelist:
-        src = os.path.join(input_training_wav_list, files)
-        training_files.append(src)
+    lines = open(input_training_wav_list, 'r').readlines()
+    for l in lines:
+        cur_filename = l.strip().split('/')[1].split('|')[0]
+        training_files.append(os.path.join(raw_wavfile_path, cur_filename))
 
     validation_files = []
-    filelist = os.listdir(input_validation_wav_list)
-    for files in filelist:
-        src = os.path.join(input_validation_wav_list, files)
-        validation_files.append(src)
+    lines = open(input_validation_wav_list, 'r').readlines()
+    for l in lines:
+        cur_filename = l.strip().split('/')[1].split('|')[0]
+        validation_files.append(os.path.join(raw_wavfile_path, cur_filename))
 
     return training_files, validation_files
 

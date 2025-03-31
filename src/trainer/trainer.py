@@ -6,6 +6,8 @@ import os
 import time
 import argparse
 import json
+import wandb
+
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
@@ -13,6 +15,7 @@ from torch.utils.data import DistributedSampler, DataLoader
 import torch.multiprocessing as mp
 from torch.distributed import init_process_group
 from torch.nn.parallel import DistributedDataParallel
+
 from src.datasets.dataset import Dataset, mel_spectrogram, amp_pha_specturm, get_dataset_filelist
 from src.model.model import (
     Generator,
@@ -38,6 +41,14 @@ torch.backends.cudnn.benchmark = True
 
 
 def train(h):
+
+    wandb.init(
+        project="audio_vocoder",  
+        config=h,                    
+        name=f"experiment_{h.seed}",  
+        sync_tensorboard=True,
+    )
+
     torch.cuda.manual_seed(h.seed)
     device = torch.device("cuda:{:d}".format(0))
 
@@ -87,7 +98,7 @@ def train(h):
     )
 
     training_filelist, validation_filelist = get_dataset_filelist(
-        h.input_training_wav_list, h.input_validation_wav_list
+        h.input_training_wav_list, h.input_validation_wav_list, h.raw_wavfile_path
     )
 
     trainset = Dataset(
@@ -279,6 +290,10 @@ def train(h):
 
             # Tensorboard summary logging
             if steps % h.summary_interval == 0:
+                wandb.log({
+                            "Training/Generator_Total_Loss": L_G.item(),
+                            "Training/Mel_Spectrogram_Loss": Mel_error,
+                        }, step=steps)
                 sw.add_scalar("Training/Generator_Total_Loss", L_G, steps)
                 sw.add_scalar("Training/Mel_Spectrogram_Loss", Mel_error, steps)
 
@@ -331,6 +346,7 @@ def train(h):
                         val_Mel_err_tot += F.l1_loss(meloss, y_g_mel).item()
 
                         if j <= 4:
+
                             if steps == 0:
                                 sw.add_audio(
                                     "gt/y_{}".format(j), y[0], steps, h.sampling_rate
@@ -363,6 +379,13 @@ def train(h):
                                 steps,
                             )
 
+                            wandb.log({
+                                        f"Audio/gt_y_{j}": wandb.Audio(y[0].cpu().numpy(), sample_rate=h.sampling_rate),
+                                        f"Audio/gen_y_g_{j}": wandb.Audio(y_g.squeeze(1)[0].cpu().numpy(), sample_rate=h.sampling_rate),
+                                        f"Spectrogram/gt_y_spec_{j}": wandb.Image(plot_spectrogram(x[0].cpu())),
+                                        f"Spectrogram/gen_y_g_spec_{j}": wandb.Image(plot_spectrogram(y_g_spec.squeeze(0).cpu().numpy())),
+                                    }, step=steps)
+
                     val_A_err = val_A_err_tot / (j + 1)
                     val_IP_err = val_IP_err_tot / (j + 1)
                     val_GD_err = val_GD_err_tot / (j + 1)
@@ -371,6 +394,19 @@ def train(h):
                     val_R_err = val_R_err_tot / (j + 1)
                     val_I_err = val_I_err_tot / (j + 1)
                     val_Mel_err = val_Mel_err_tot / (j + 1)
+
+                    wandb.log({
+                              "Validation/Amplitude_Loss": val_A_err,
+                              "Validation/Instantaneous_Phase_Loss": val_IP_err,
+                              "Validation/Group_Delay_Loss": val_GD_err,
+                              "Validation/Phase_Time_Difference_Loss": val_PTD_err,
+                              "Validation/STFT_Consistency_Loss": val_C_err,
+                              "Validation/Real_Part_Loss": val_R_err,
+                              "Validation/Imaginary_Part_Loss": val_I_err,
+                              "Validation/Mel_Spectrogram_loss": val_Mel_err,
+                          }, step=steps)
+
+
                     sw.add_scalar("Validation/Amplitude_Loss", val_A_err, steps)
                     sw.add_scalar(
                         "Validation/Instantaneous_Phase_Loss", val_IP_err, steps
@@ -397,11 +433,13 @@ def train(h):
             )
         )
 
+    wandb.finish()
+
 
 def main():
     print("Initializing Training Process..")
 
-    config_file = "model_v1.json"
+    config_file = "/content/audio_vocoder/src/configs/model_v1_tmp.json"
 
     with open(config_file) as f:
         data = f.read()
