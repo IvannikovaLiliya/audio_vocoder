@@ -10,6 +10,8 @@ import librosa
 import torchaudio
 import torch.nn as nn
 from pghipy import pghi
+from scipy.fft import dct
+from scipy.signal import stft, istft
 
 
 def load_wav(full_path, sample_rate):
@@ -120,6 +122,42 @@ def inverse_mel(
         inv_mel_window[ps] = inv_basis.clone()
     return inv_basis.to(device) @ spectral_de_normalize_torch(mel.to(device))
 
+def mel_to_phase(mel_spec, 
+                 n_fft, 
+                 hop_length, 
+                 win_length, 
+                 sr, 
+                 n_mels, 
+                 fmin, 
+                 fmax,
+                 power,
+                 n_iter,
+                 normalize):
+
+    if normalize:
+        mel_spec = torch.exp(mel_spec)
+    
+    mel_basis = librosa.filters.mel(sr=sr, 
+                                    n_fft=n_fft, 
+                                    n_mels=n_mels, 
+                                    fmin=fmin, 
+                                    fmax=fmax)
+    
+    inv_mel_basis = np.linalg.pinv(mel_basis)
+    mag = np.dot(inv_mel_basis, mel_spec) ** power
+    phase = 2 * np.pi * np.random.rand(*mag.shape)
+
+    window = librosa.filters.get_window('hann', win_length)
+
+    for _ in range(n_iter):
+
+        stft_matrix = mag * np.exp(1j * phase)
+        y = librosa.istft(stft_matrix, hop_length=hop_length,
+                         win_length=win_length, window=window)
+        _, phase = librosa.magphase(librosa.stft(y, n_fft=n_fft, hop_length=hop_length,
+                                               win_length=win_length, window=window))
+  
+    return phase
 
 def amp_pha_specturm(y, n_fft, hop_size, win_size):
     hann_window = torch.hann_window(win_size).to(y.device)

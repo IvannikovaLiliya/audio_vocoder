@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 import torch.nn as nn
 from torch.nn import Conv1d, ConvTranspose1d, AvgPool1d, Conv2d
-from torch.nn.utils import weight_norm, spectral_norm, remove_weight_norm
+from torch.nn.utils import weight_norm, spectral_norm
 from src.utils.utils import init_weights, get_padding
 from src.datasets.dataset import inverse_mel
 import numpy as np
@@ -65,139 +65,53 @@ class ConvNeXtBlock(nn.Module):
         x = residual + x
         return x
 
-class ResBlock1(torch.nn.Module):
-    def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):
-        super(ResBlock1, self).__init__()
-        self.h = h
-        self.convs1 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[2],
-                               padding=get_padding(kernel_size, dilation[2])))
-        ])
-        self.convs1.apply(init_weights)
-
-        self.convs2 = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=1,
-                               padding=get_padding(kernel_size, 1)))
-        ])
-        self.convs2.apply(init_weights)
-
-    def forward(self, x):
-        for c1, c2 in zip(self.convs1, self.convs2):
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            xt = c1(xt)
-            xt = F.leaky_relu(xt, LRELU_SLOPE)
-            xt = c2(xt)
-            x = xt + x
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs1:
-            remove_weight_norm(l)
-        for l in self.convs2:
-            remove_weight_norm(l)
-
-
-class ResBlock2(torch.nn.Module):
-    def __init__(self, h, channels, kernel_size=3, dilation=(1, 3)):
-        super(ResBlock2, self).__init__()
-        self.h = h
-        self.convs = nn.ModuleList([
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[0],
-                               padding=get_padding(kernel_size, dilation[0]))),
-            weight_norm(Conv1d(channels, channels, kernel_size, 1, dilation=dilation[1],
-                               padding=get_padding(kernel_size, dilation[1])))
-        ])
-        self.convs.apply(init_weights)
-
-    def forward(self, x):
-        for c in self.convs:
-            xt = F.leaky_relu(x, LRELU_SLOPE)
-            xt = c(xt)
-            x = xt + x
-        return x
-
-    def remove_weight_norm(self):
-        for l in self.convs:
-            remove_weight_norm(l)
-
-class iSTFTNet(torch.nn.Module):
-    def __init__(self, h):
-        super(iSTFTNet, self).__init__()
-        self.h = h
-        self.num_kernels = len(h.PSP_resblock_kernel_sizes)
-        self.num_upsamples = len(h.PSP_upsample_rates)
-        self.conv_pre = weight_norm(Conv1d(80, h.PSP_upsample_initial_channel, 7, 1, padding=3))
-        resblock = ResBlock1 if h.resblock == '1' else ResBlock2
-
-        self.ups = nn.ModuleList()
-        for i, (u, k) in enumerate(zip(h.PSP_upsample_rates, h.PSP_upsample_kernel_sizes)):
-            self.ups.append(weight_norm(
-                ConvTranspose1d(h.PSP_upsample_initial_channel//(2**i), h.PSP_upsample_initial_channel//(2**(i+1)),
-                                k, u, padding=(k-u)//2)))
-
-        self.resblocks = nn.ModuleList()
-        for i in range(len(self.ups)):
-            ch = h.PSP_upsample_initial_channel//(2**(i+1))
-            for j, (k, d) in enumerate(zip(h.PSP_resblock_kernel_sizes, h.PSP_resblock_dilation_sizes)):
-                self.resblocks.append(resblock(h, ch, k, d))
-
-        self.post_n_fft = h.PSP_gen_istft_n_fft
-        self.conv_post = weight_norm(Conv1d(ch, self.post_n_fft + 2, 7, 1, padding=3))
-        self.ups.apply(init_weights)
-        self.conv_post.apply(init_weights)
-        self.reflection_pad = torch.nn.ReflectionPad1d((1, 0))
- 
-    def forward(self, x):
-        x = self.conv_pre(x)
-        for i in range(self.num_upsamples):
-            x = F.leaky_relu(x, LRELU_SLOPE)
-            x = self.ups[i](x)
-            xs = None
-            for j in range(self.num_kernels):
-                if xs is None:
-                    xs = self.resblocks[i*self.num_kernels+j](x)
-                else:
-                    xs += self.resblocks[i*self.num_kernels+j](x)
-            x = xs / self.num_kernels
-        x = F.leaky_relu(x)
-        x = self.reflection_pad(x)
-        x = self.conv_post(x)
-        phase = torch.sin(x[:, self.post_n_fft // 2 + 1:, :])
-
-        return phase
-
-
-    def remove_weight_norm(self):
-        print('Removing weight norm...')
-        for l in self.ups:
-            remove_weight_norm(l)
-        for l in self.resblocks:
-            l.remove_weight_norm()
-        remove_weight_norm(self.conv_pre)
-        remove_weight_norm(self.conv_post)
-
 
 class Generator(torch.nn.Module):
     def __init__(self, h):
         super(Generator, self).__init__()
         self.h = h
         self.ASP_num_kernels = len(h.ASP_resblock_kernel_sizes)
+        self.PSP_num_kernels = len(h.PSP_resblock_kernel_sizes)
+
+        self.PSP_input_conv = Conv1d(
+            2 * self.h.ASP_channel,
+            h.PSP_channel,
+            1,
+        )
+
+        self.PSP_output_R_conv = Conv1d(
+            512,
+            h.n_fft // 2 + 1,
+            h.PSP_output_R_conv_kernel_size,
+            1,
+            padding=get_padding(h.PSP_output_R_conv_kernel_size, 1),
+        )
+        self.PSP_output_I_conv = Conv1d(
+            512,
+            h.n_fft // 2 + 1,
+            h.PSP_output_I_conv_kernel_size,
+            1,
+            padding=get_padding(h.PSP_output_I_conv_kernel_size, 1),
+        )
 
         self.dim = 512
+        self.num_layers = 1
         self.adanorm_num_embeddings = None
         self.intermediate_dim = 1536
         self.norm = nn.LayerNorm(self.dim, eps=1e-6)
         self.norm2 = nn.LayerNorm(self.dim, eps=1e-6)
         layer_scale_init_value = 1 / self.num_layers
-
+        self.convnext = nn.ModuleList(
+            [
+                ConvNeXtBlock(
+                    dim=self.dim,
+                    intermediate_dim=self.intermediate_dim,
+                    layer_scale_init_value=layer_scale_init_value,
+                    adanorm_num_embeddings=self.adanorm_num_embeddings,
+                )
+                for _ in range(self.num_layers)
+            ]
+        )
         self.convnext2 = nn.ModuleList(
             [
                 ConvNeXtBlock(
@@ -210,9 +124,8 @@ class Generator(torch.nn.Module):
                 for _ in range(1)
             ]
         )
-
-        self.istftnet = iSTFTNet(h)
-
+        self.final_layer_norm = nn.LayerNorm(self.dim, eps=1e-6)
+        self.final_layer_norm2 = nn.LayerNorm(self.dim, eps=1e-6)
         self.apply(self._init_weights)
 
     def _init_weights(self, m):
@@ -243,7 +156,16 @@ class Generator(torch.nn.Module):
         for conv_block in self.convnext2:
             logamp = conv_block(logamp, cond_embedding_id=None)
 
-        pha = self.istftnet(mel)
+        pha = self.PSP_input_conv(torch.cat((inv_amp, pghi), dim=1))
+
+        for conv_block in self.convnext:
+            pha = conv_block(pha, cond_embedding_id=None)
+        pha = self.final_layer_norm(pha.transpose(1, 2))
+        pha = pha.transpose(1, 2)
+        R = self.PSP_output_R_conv(pha)
+        I = self.PSP_output_I_conv(pha)
+
+        pha = torch.atan2(I, R)
 
         rea = torch.exp(logamp) * torch.cos(pha)
         imag = torch.exp(logamp) * torch.sin(pha)
