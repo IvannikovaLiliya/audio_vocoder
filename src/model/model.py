@@ -134,26 +134,38 @@ class iSTFTNet(torch.nn.Module):
         self.h = h
         self.num_kernels = len(h.PSP_resblock_kernel_sizes)
         self.num_upsamples = len(h.PSP_upsample_rates)
+        # self.post_n_fft = h.n_fft // 2 + 1
+
         self.conv_pre = weight_norm(Conv1d(80, h.PSP_upsample_initial_channel, 7, 1, padding=3))
         resblock = ResBlock1 if h.resblock == '1' else ResBlock2
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(h.PSP_upsample_rates, h.PSP_upsample_kernel_sizes)):
             self.ups.append(weight_norm(
-                ConvTranspose1d(h.PSP_upsample_initial_channel//(2**i), h.PSP_upsample_initial_channel//(2**(i+1)),
+                ConvTranspose1d(h.PSP_upsample_initial_channel//(2**i), 
+                                h.PSP_upsample_initial_channel//(2**(i+1)),
                                 k, u, padding=(k-u)//2)))
 
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
             ch = h.PSP_upsample_initial_channel//(2**(i+1))
-            for j, (k, d) in enumerate(zip(h.PSP_resblock_kernel_sizes, h.PSP_resblock_dilation_sizes)):
+            for j, (k, d) in enumerate(zip(h.PSP_resblock_kernel_sizes, 
+                                           h.PSP_resblock_dilation_sizes)):
                 self.resblocks.append(resblock(h, ch, k, d))
 
         self.post_n_fft = h.PSP_gen_istft_n_fft
         self.conv_post = weight_norm(Conv1d(ch, self.post_n_fft + 2, 7, 1, padding=3))
+        # self.conv_post = weight_norm(Conv1d(ch, self.post_n_fft, 7, 1, padding=3))
         self.ups.apply(init_weights)
         self.conv_post.apply(init_weights)
         self.reflection_pad = torch.nn.ReflectionPad1d((1, 0))
+        self.reduce =  nn.Conv1d(
+                                in_channels=9,
+                                out_channels=513,
+                                kernel_size=65,
+                                stride=64,
+                                padding=0
+                            )
  
     def forward(self, x):
         x = self.conv_pre(x)
@@ -169,10 +181,11 @@ class iSTFTNet(torch.nn.Module):
             x = xs / self.num_kernels
         x = F.leaky_relu(x)
         x = self.reflection_pad(x)
-        x = self.conv_post(x)
+        x = self.conv_post(x) 
         phase = torch.sin(x[:, self.post_n_fft // 2 + 1:, :])
+        output = self.reduce(phase) 
 
-        return phase
+        return output
 
 
     def remove_weight_norm(self):
@@ -196,7 +209,7 @@ class Generator(torch.nn.Module):
         self.intermediate_dim = 1536
         self.norm = nn.LayerNorm(self.dim, eps=1e-6)
         self.norm2 = nn.LayerNorm(self.dim, eps=1e-6)
-        layer_scale_init_value = 1 / self.num_layers
+        layer_scale_init_value = 1 / 8
 
         self.convnext2 = nn.ModuleList(
             [
