@@ -45,10 +45,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Compute SNR measure.")
 
     parser.add_argument('--ref_dir', required=False, 
-                        default="/data4/liandong/datasets/LJSpeech-1.1/wavs", 
+                        default="/wavs", 
                         help="Reference wav folder.")
     parser.add_argument('--deg_dir', required=False, 
-                        default="/data4/liandong/PROJECTS/FreeV/File_Decodes/LJSpeech/APNet2_ori_authors",
+                        default="/gen",
                         help="Degraded wav folder.")
     parser.add_argument('--sr', required=False,
                         type=int,

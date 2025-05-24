@@ -31,6 +31,10 @@ def plot_spectrogram(spectrogram):
     return fig
 
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 def init_weights(m, mean=0.0, std=0.01):
     classname = m.__class__.__name__
     if classname.find("Conv") != -1:

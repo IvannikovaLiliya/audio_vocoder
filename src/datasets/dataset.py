@@ -1,17 +1,11 @@
-import math
 import os
 import random
 import torch
 import torch.utils.data
 import numpy as np
-from librosa.util import normalize
 from librosa.filters import mel as librosa_mel_fn
 import librosa
-import torchaudio
-import torch.nn as nn
 from pghipy import pghi
-from scipy.fft import dct
-from scipy.signal import stft, istft
 
 
 def load_wav(full_path, sample_rate):
@@ -68,12 +62,13 @@ def mel_spectrogram(
     global mel_window
     device = torch.device("cpu") if in_dataset else y.device
     ps = param_string(sampling_rate, n_fft, num_mels, fmin, fmax, win_size, device)
+    
     if ps in mel_window:
         mel_basis, hann_window = mel_window[ps]
         # print(mel_basis, hann_window)
         # mel_basis, hann_window = mel_basis.to(y.device), hann_window.to(y.device)
     else:
-        mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
+        mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
         mel_basis = torch.from_numpy(mel).float().to(device)
         hann_window = torch.hann_window(win_size).to(device)
         mel_window[ps] = (mel_basis.clone(), hann_window.clone())

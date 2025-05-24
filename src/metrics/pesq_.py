@@ -41,10 +41,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Compute PESQ measure.")
 
     parser.add_argument('--ref_dir', required=False, 
-                        default="/data4/liandong/datasets/LJSpeech-1.1",
+                        default="/wavs", 
                         help="Reference wav folder.")
     parser.add_argument('--deg_dir', required=False, 
-                        default="/data4/liandong/PROJECTS/FreeV/File_Decodes/LJSpeech/BSRNN_feat128_mask",
+                        default="/gen",
                         help="Degraded wav folder.")
     parser.add_argument('--sr', default=16000, required=False, help="Target sampling rate, 16000 by default."
     )

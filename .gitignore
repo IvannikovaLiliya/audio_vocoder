@@ -5,3 +5,12 @@ __pycache__/
 data/wavs
 data/LJSpeech-1.1.tar.bz2
 .DS_Store
+data/g_01000000
+cp_model_fin
+output_fin_v2
+output_fin
+output_v2
+libs
+logs
+cp_model_v2
+inference/pretrained

@@ -25,12 +25,12 @@ def cal_mcd_wrapper(ref_dir_dict, deg_files, sr, n_fft=1024, n_shift=256, mcd_di
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description="Compute MCD measure.")
-
+    
     parser.add_argument('--ref_dir', required=False, 
-                        default=["/data4/liandong/datasets/LibriTTS/LibriTTS/dev-clean", "/data4/liandong/datasets/LibriTTS/LibriTTS/dev-other"],
+                        default="/wavs", 
                         help="Reference wav folder.")
     parser.add_argument('--deg_dir', required=False, 
-                        default="/data4/liandong/PROJECTS/FreeV/File_Decodes/LibriTTS/joint_denoise_vocoder/vocoder/2M_steps",
+                        default="/gen",
                         help="Degraded wav folder.")
     parser.add_argument(
         '--sr', required=False,

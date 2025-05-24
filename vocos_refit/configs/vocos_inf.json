@@ -1,0 +1,22 @@
+{
+  "input_training_wav_list": "/Users/liliyaivannikova/Documents/vkr/pytorch_project/audio_vocoder/data/descr/training.txt",
+    "input_validation_wav_list": "/Users/liliyaivannikova/Documents/vkr/pytorch_project/audio_vocoder/data/descr/validation.txt",
+    "raw_wavfile_path": "/Users/liliyaivannikova/Documents/vkr/pytorch_project/audio_vocoder/data/wavs/",
+    "test_input_wavs_dir":"/Users/liliyaivannikova/Documents/vkr/pytorch_project/audio_vocoder/data/descr/test.txt",
+    "test_input_mels_dir":"./",
+    "test_mel_load": 0,
+    "test_output_dir": "/Users/liliyaivannikova/Documents/vkr/pytorch_project/research/istftnet/pretrained/pretrained/vocos",
+    "checkpoint_path": "Experiments/HiFiGAN",
+    "checkpoint_file_load": "/Users/liliyaivannikova/Documents/vkr/pytorch_project/vocos/vocos_fin.ckpt",
+
+  "seed_everything": 4444,
+  "sampling_rate": 22050,
+  "num_mels": 100,
+  "num_freq": 1025,
+  "n_fft": 1024,
+  "hop_size": 256,
+  "win_size": 1024,
+
+  "fmin": 0,
+  "fmax": 12000
+}

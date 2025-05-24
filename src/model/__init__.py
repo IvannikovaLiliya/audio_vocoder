@@ -1,4 +1,4 @@
-from src.model.model import (
+from src.model.model_logamp import (
     Generator,
     MultiPeriodDiscriminator,
     feature_loss,

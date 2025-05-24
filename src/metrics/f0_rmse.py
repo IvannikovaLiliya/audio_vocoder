@@ -136,10 +136,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Compute F0-RMSE measure.")
 
     parser.add_argument('--ref_dir', required=False, 
-                        default="/data4/liandong/datasets/LJSpeech-1.1",
+                        default="/wavs", 
                         help="Reference wav folder.")
     parser.add_argument('--deg_dir', required=False, 
-                        default="/data4/liandong/PROJECTS/FreeV/File_Decodes/LJSpeech/ConvTasNet/griffin_lim",
+                        default="/gen",
                         help="Degraded wav folder.")
     parser.add_argument(
         '--sr', required=False,
